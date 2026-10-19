@@ -1,7 +1,9 @@
 import json
+from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.security import get_password_hash
@@ -81,10 +83,34 @@ app.include_router(study_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 
+FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
 @app.get("/")
 def root():
+    index_file = FRONTEND_DIST / "index.html"
+    if index_file.is_file():
+        return FileResponse(index_file)
     return {
         "message": "Welcome to DocMind AI API. Visit /docs for interactive Swagger API documentation.",
         "version": settings.VERSION,
         "status": "online"
     }
+
+@app.get("/{path:path}", include_in_schema=False)
+def serve_frontend(path: str):
+    if path == "api" or path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    index_file = FRONTEND_DIST / "index.html"
+    if not index_file.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    requested_file = (FRONTEND_DIST / path).resolve()
+    try:
+        requested_file.relative_to(FRONTEND_DIST.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    if requested_file.is_file():
+        return FileResponse(requested_file)
+    return FileResponse(index_file)

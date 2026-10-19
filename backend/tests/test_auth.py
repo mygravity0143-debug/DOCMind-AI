@@ -51,3 +51,18 @@ def test_demo_user_seeded():
     assert res.status_code == 200
     data = res.json()
     assert data["user"]["email"] == "demo@docmind.ai"
+
+def test_frontend_routes(monkeypatch, tmp_path):
+    from app import main
+
+    frontend_dist = tmp_path / "dist"
+    assets_dir = frontend_dist / "assets"
+    assets_dir.mkdir(parents=True)
+    (frontend_dist / "index.html").write_text("<main>DocMind</main>")
+    (assets_dir / "app.js").write_text("window.ready = true")
+    monkeypatch.setattr(main, "FRONTEND_DIST", frontend_dist)
+
+    assert client.get("/").text == "<main>DocMind</main>"
+    assert client.get("/research").text == "<main>DocMind</main>"
+    assert client.get("/assets/app.js").text == "window.ready = true"
+    assert client.get("/api/missing").status_code == 404
